@@ -1,0 +1,8 @@
+name = "webpage-clone"
+main = "src/worker.js"
+compatibility_date = "2024-09-23"
+
+# Serve all static files (MHTML, HTML, JS) from the project root
+[assets]
+directory = "./"
+not_found_handling = "single-page-application"
