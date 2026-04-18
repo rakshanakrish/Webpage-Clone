@@ -1,17 +1,7 @@
 'use strict';
 
 /**
- * build.js — Static pre-renderer for Cloudflare Pages deployment.
- *
- * Cloudflare Pages is static-only (no Node.js at runtime). This script:
- *   1. Parses every MHTML file and applies all transforms (same logic as server.js)
- *   2. Writes pre-rendered HTML to dist/<route>/index.html
- *   3. Copies the two PDFs into dist/download/<key>  (no extension)
- *   4. Writes dist/_headers so Cloudflare sends correct Content-Disposition
- *
- * Build command  : npm run build
- * Output dir     : dist/
- * Cloudflare cfg : wrangler.toml  (or dashboard: build=npm run build, out=dist)
+ * build.js — Static pre-renderer for Cloudflare Pages/Workers deployment.
  */
 
 const fs      = require('fs');
@@ -19,44 +9,36 @@ const path    = require('path');
 const cheerio = require('cheerio');
 const { parseMhtml } = require('./lib/mhtml-parser');
 const { buildPage  } = require('./lib/page-builder');
+const { ROUTE_MAP  } = require('./lib/routes');
 
 const MHTML_DIR = path.join(__dirname, 'public');
 const DIST      = path.join(__dirname, 'dist');
+const R = ROUTE_MAP;
 
 // ── Route table ──────────────────────────────────────────────────────────────
+// outFile maps each hash URL to a dist/ path that Cloudflare can serve.
+// Hash URL /abc123 → dist/abc123/index.html → served at domain.com/abc123/
 const ROUTES = [
-  { urlPath: '/',                  file: 'Home.mhtml',                          outFile: 'index.html'                   },
-  { urlPath: '/author',            file: 'Author.mhtml',                        outFile: 'author/index.html'            },
-  { urlPath: '/review',            file: 'Review.mhtml',                        outFile: 'review/index.html'            },
-  { urlPath: '/author/submission', file: 'Start New Submission (Author).mhtml', outFile: 'author/submission/index.html' },
-  { urlPath: '/author/email',      file: 'Recent Email (Author).mhtml',         outFile: 'author/email/index.html'      },
-  { urlPath: '/author/editing',    file: 'English Editing (Author).mhtml',      outFile: 'author/editing/index.html'    },
+  { urlPath: R['/'],                  file: 'Home.mhtml',                          outFile: 'index.html'                                             },
+  { urlPath: R['/author'],            file: 'Author.mhtml',                        outFile: R['/author'].slice(1)            + '/index.html'         },
+  { urlPath: R['/review'],            file: 'Review.mhtml',                        outFile: R['/review'].slice(1)            + '/index.html'         },
+  { urlPath: R['/author/submission'], file: 'Start New Submission (Author).mhtml', outFile: R['/author/submission'].slice(1)  + '/index.html'         },
+  { urlPath: R['/author/email'],      file: 'Recent Email (Author).mhtml',         outFile: R['/author/email'].slice(1)      + '/index.html'         },
+  { urlPath: R['/author/editing'],    file: 'English Editing (Author).mhtml',      outFile: R['/author/editing'].slice(1)    + '/index.html'         },
 ];
 
 // ── PDF assets ────────────────────────────────────────────────────────────────
 const PDFS = [
-  {
-    key:      'accepted-draft',
-    src:      path.join(__dirname, 'IJIEOM-04-2026-0114_Accepted_Draft.pdf'),
-    filename: 'IJIEOM-04-2026-0114_Accepted_Draft.pdf',
-  },
-  {
-    key:      'original-files',
-    src:      path.join(__dirname, 'Selective State Space Models for Real-Time Log Intelligence.pdf'),
-    filename: 'Selective State Space Models for Real-Time Log Intelligence.pdf',
-  },
+  { key: 'accepted-draft', src: path.join(__dirname, 'IJIEOM-04-2026-0114_Accepted_Draft.pdf'),                                            filename: 'IJIEOM-04-2026-0114_Accepted_Draft.pdf'                               },
+  { key: 'original-files', src: path.join(__dirname, 'Selective State Space Models for Real-Time Log Intelligence.pdf'), filename: 'Selective State Space Models for Real-Time Log Intelligence.pdf' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Transform functions  (identical to server.js — kept in sync manually)
+//  Transform functions
 // ═══════════════════════════════════════════════════════════════════════════
 
 function transformEditingPage($) {
-  $('#closeBtn')
-    .attr('href', 'javascript:history.back()')
-    .removeAttr('data-dismiss')
-    .removeAttr('onclick');
-
+  $('#closeBtn').attr('href', 'javascript:history.back()').removeAttr('data-dismiss').removeAttr('onclick');
   $('button.close[data-dismiss="modal"], button.close[aria-hidden]').each((_, el) => {
     $(el).attr('onclick', 'history.back(); return false;').removeAttr('data-dismiss');
   });
@@ -68,10 +50,10 @@ function transformAuthorPage($) {
   'use strict';
   var obs = null;
   var LINKS = [
-    { text: 'Manuscripts with Decisions',       href: '/author'            },
-    { text: 'Start New Submission',             href: '/author/submission' },
-    { text: '5 Most Recent E-mails',            href: '/author/email'      },
-    { text: 'English Language Editing Service', href: '/author/editing'    }
+    { text: 'Manuscripts with Decisions',       href: '${R['/author']}' },
+    { text: 'Start New Submission',             href: '${R['/author/submission']}' },
+    { text: '5 Most Recent E-mails',            href: '${R['/author/email']}' },
+    { text: 'English Language Editing Service', href: '${R['/author/editing']}' }
   ];
   function patch() {
     if (obs) obs.disconnect();
@@ -84,9 +66,7 @@ function transformAuthorPage($) {
           a.removeAttribute('onclick');
         }
       }
-      if (txt.toLowerCase().indexOf('view decision letter') !== -1) {
-        a.remove(); return;
-      }
+      if (txt.toLowerCase().indexOf('view decision letter') !== -1) { a.remove(); return; }
       if (txt === 'Contact Journal' && cur.indexOf('mail.google.com') === -1) {
         a.setAttribute('href', 'https://mail.google.com/mail/?view=cm&to=editorial.ijieom@gmail.com');
         a.setAttribute('target', '_blank');
@@ -113,9 +93,7 @@ function transformAuthorPage($) {
     setTimeout(patch, 800);
     setTimeout(patch, 2500);
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setup);
-  } else { setup(); }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', setup); } else { setup(); }
 })();
 <\/script>`);
 }
@@ -131,7 +109,7 @@ function transformReviewPage($) {
       var txt = (a.textContent || '').replace(/\s+/g, ' ').trim();
       var cur = a.getAttribute('href') || '';
       if ((txt.indexOf('Submitted Reviews') !== -1 || txt.indexOf('Invitations') !== -1) && (!cur || cur === '#'))
-        a.setAttribute('href', '/review');
+        a.setAttribute('href', '${R['/review']}');
     });
     if (obs) obs.observe(document.body, { childList: true, subtree: true });
   }
@@ -139,33 +117,33 @@ function transformReviewPage($) {
     patch();
     obs = new MutationObserver(function () { patch(); });
     obs.observe(document.body, { childList: true, subtree: true });
-    setTimeout(patch, 800);
-    setTimeout(patch, 2500);
+    setTimeout(patch, 800); setTimeout(patch, 2500);
   }
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setup);
-  } else { setup(); }
+  if (document.readyState === 'loading') { document.addEventListener('DOMContentLoaded', setup); } else { setup(); }
 })();
 <\/script>`);
 }
 
 const PAGE_TRANSFORMS = {
-  '/author/editing': transformEditingPage,
-  '/author':         transformAuthorPage,
-  '/review':         transformReviewPage,
+  [R['/author/editing']]: transformEditingPage,
+  [R['/author']]:         transformAuthorPage,
+  [R['/review']]:         transformReviewPage,
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Build
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Clean + create dist/
 if (fs.existsSync(DIST)) fs.rmSync(DIST, { recursive: true, force: true });
 fs.mkdirSync(DIST, { recursive: true });
 
-console.log('\n🔨  Building static site for Cloudflare Pages...\n');
+console.log('\n🔨  Building static site (hash URLs)...\n');
+console.log('  Route map:');
+for (const [clean, hash] of Object.entries(R)) {
+  if (clean !== '/') console.log(`    ${clean.padEnd(22)} →  ${hash}`);
+}
+console.log('');
 
-// 1. Render each page
 let ok = true;
 for (const route of ROUTES) {
   const filePath = path.join(MHTML_DIR, route.file);
@@ -185,32 +163,27 @@ for (const route of ROUTES) {
     fs.writeFileSync(outPath, fullHtml, 'utf8');
 
     const kb = Math.round(fs.statSync(outPath).size / 1024);
-    console.log(`  ✅  ${route.urlPath.padEnd(24)} →  dist/${route.outFile}  (${kb} KB)`);
+    console.log(`  ✅  ${route.urlPath.slice(0, 20).padEnd(22)}…  →  dist/${route.outFile.split('/')[0]}/  (${kb} KB)`);
   } catch (err) {
-    console.error(`  ❌  ${route.urlPath.padEnd(24)} ←  ${route.file}`);
+    console.error(`  ❌  ${route.urlPath}  ←  ${route.file}`);
     console.error(`        ${err.message}`);
     ok = false;
   }
 }
 
-// 2. Copy PDFs into dist/download/<key>  (no extension — matches hrefs in MHTML)
+// Copy PDFs
 console.log('');
 const dlDir = path.join(DIST, 'download');
 fs.mkdirSync(dlDir, { recursive: true });
-
 for (const pdf of PDFS) {
-  if (!fs.existsSync(pdf.src)) {
-    console.warn(`  ⚠️   PDF not found, skipping: ${pdf.src}`);
-    continue;
-  }
-  const dest = path.join(dlDir, pdf.key);   // no extension
+  if (!fs.existsSync(pdf.src)) { console.warn(`  ⚠️  PDF not found: ${pdf.src}`); continue; }
+  const dest = path.join(dlDir, pdf.key);
   fs.copyFileSync(pdf.src, dest);
   const kb = Math.round(fs.statSync(dest).size / 1024);
-  console.log(`  📄  /download/${pdf.key.padEnd(20)} →  dist/download/${pdf.key}  (${kb} KB)`);
+  console.log(`  📄  /download/${pdf.key.padEnd(16)} →  dist/download/${pdf.key}  (${kb} KB)`);
 }
 
-// 3. Write _headers so Cloudflare Pages sends correct Content-Disposition
-//    (forces browser Save-As dialog instead of opening PDF inline)
+// _headers for Cloudflare
 const headersContent = PDFS.map(pdf => [
   `/download/${pdf.key}`,
   `  Content-Type: application/pdf`,
@@ -220,6 +193,5 @@ const headersContent = PDFS.map(pdf => [
 fs.writeFileSync(path.join(DIST, '_headers'), headersContent + '\n');
 console.log('\n  📋  dist/_headers written');
 
-// 4. Final status
 if (!ok) { console.error('\n❌  Build completed with errors.\n'); process.exit(1); }
 console.log('\n✅  Build complete → dist/\n');

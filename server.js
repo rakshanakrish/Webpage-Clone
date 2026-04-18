@@ -19,20 +19,22 @@ const path     = require('path');
 const cheerio  = require('cheerio');
 const { parseMhtml } = require('./lib/mhtml-parser');
 const { buildPage  } = require('./lib/page-builder');
+const { ROUTE_MAP  } = require('./lib/routes');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
 
 const MHTML_DIR = path.join(__dirname, 'public');
+const R = ROUTE_MAP; // shorthand
 
-// ── Route → MHTML file mapping ─────────────────────────────────────────────
+// ── Route → MHTML file mapping (uses hash paths) ────────────────────────────
 const ROUTES = [
-  { path: '/',                  file: 'Home.mhtml'                           },
-  { path: '/author',            file: 'Author.mhtml'                         },
-  { path: '/review',            file: 'Review.mhtml'                         },
-  { path: '/author/submission', file: 'Start New Submission (Author).mhtml'  },
-  { path: '/author/email',      file: 'Recent Email (Author).mhtml'          },
-  { path: '/author/editing',    file: 'English Editing (Author).mhtml'       },
+  { path: R['/'],                  file: 'Home.mhtml'                           },
+  { path: R['/author'],            file: 'Author.mhtml'                         },
+  { path: R['/review'],            file: 'Review.mhtml'                         },
+  { path: R['/author/submission'], file: 'Start New Submission (Author).mhtml'  },
+  { path: R['/author/email'],      file: 'Recent Email (Author).mhtml'          },
+  { path: R['/author/editing'],    file: 'English Editing (Author).mhtml'       },
 ];
 
 // ── PDF download file paths ────────────────────────────────────────────────
@@ -40,6 +42,7 @@ const DOWNLOADS = {
   'accepted-draft': path.join(__dirname, 'IJIEOM-04-2026-0114_Accepted_Draft.pdf'),
   'original-files': path.join(__dirname, 'Selective State Space Models for Real-Time Log Intelligence.pdf'),
 };
+
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Page-specific transforms — applied to the parsed HTML after buildPage()
@@ -77,10 +80,10 @@ function transformAuthorPage($) {
   var obs = null;
 
   var LINKS = [
-    { text: 'Manuscripts with Decisions',       href: '/author'            },
-    { text: 'Start New Submission',             href: '/author/submission' },
-    { text: '5 Most Recent E-mails',            href: '/author/email'      },
-    { text: 'English Language Editing Service', href: '/author/editing'    }
+    { text: 'Manuscripts with Decisions',       href: '${R['/author']}' },
+    { text: 'Start New Submission',             href: '${R['/author/submission']}' },
+    { text: '5 Most Recent E-mails',            href: '${R['/author/email']}' },
+    { text: 'English Language Editing Service', href: '${R['/author/editing']}' }
   ];
 
   function patch() {
