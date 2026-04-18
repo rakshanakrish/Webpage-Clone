@@ -1,13 +1,7 @@
-# Cloudflare Pages — build config
-# Dashboard settings:
-#   Framework preset : None
-#   Build command    : npm run build
-#   Build output dir : dist
-#   Node.js version  : 18 (set in Environment Variables: NODE_VERSION = 18)
+name = "webpage-clone"
+compatibility_date = "2025-01-01"
+compatibility_flags = ["nodejs_compat"]
 
-[build]
-command = "npm run build"
-destination = "dist"
-
-[build.environment]
-NODE_VERSION = "18"
+# Serve the pre-built static site from dist/ as Worker Assets
+[assets]
+directory = "./dist"
