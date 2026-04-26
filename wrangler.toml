@@ -1,4 +1,4 @@
-name = "editorialmanager-ijieom"
+name = "mc04-manuscriptcentral-editorialmanager-ijieom"
 compatibility_date = "2025-01-01"
 compatibility_flags = ["nodejs_compat"]
 
