@@ -1,5 +1,44 @@
+# ─── Node.js ───────────────────────────────────────────────────────────────────
 node_modules/
-dist/
-.wrangler/
-.env
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 *.log
+
+# ─── Build Output ──────────────────────────────────────────────────────────────
+dist/
+build/
+out/
+
+# ─── Cloudflare / Wrangler ─────────────────────────────────────────────────────
+.wrangler/
+.dev.vars
+
+# ─── Environment & Secrets ─────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+*.pem
+*.key
+*.cert
+
+# ─── OS Files ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+
+# ─── Editor / IDE ──────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ─── Temporary Files ───────────────────────────────────────────────────────────
+*.tmp
+*.temp
+*.cache
